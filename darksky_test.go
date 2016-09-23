@@ -28,6 +28,18 @@ func TestForecastRequest_Get(t *testing.T) {
 	})
 }
 
+func TestForecastRequest_URL(t *testing.T) {
+	u, err := MakeRequest("foo", 41.1234, -81.1234).URL()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if u != "https://api.darksky.net/forecast/foo/41.1234,-81.1234" {
+		t.Errorf("Wrong URL: %v", u)
+	}
+}
+
 func TestErrorResponse(t *testing.T) {
 	usingTestServer(errorForecastHandler, func(testURL string) {
 		resp := MakeRequest(key, 41.8781, -87.6297).WithBaseURL(testURL).Get()

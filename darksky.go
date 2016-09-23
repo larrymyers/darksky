@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"net/url"
 	"fmt"
 )
 
@@ -115,15 +116,9 @@ type Flags struct {
 	Units              string   `json:"units"`
 }
 
-// Options are used to modify the data representation of the Forecast.
-type Options struct {
-	Time         int64
-	Exclude      []string
-	ExtendHourly bool
-	Lang         Lang
-	Units        Units
-}
-
+// ForecastRequest is the data needed to retrieve a forecast from the Dark Sky API.
+// Key, Lat, and Lng are required to make a basic request. All other fields are optional,
+// and have sensible defaults if created used MakeRequest.
 type ForecastRequest struct {
 	Key string
 	Lat float64
@@ -136,17 +131,18 @@ type ForecastRequest struct {
 	baseURL string
 }
 
-/*
-ForecastResponse is a wrapper struct for a response from the DarkSky API.
 
-Errors are included to make it easier to pass single values via channel from a goroutine.
-*/
+// ForecastResponse is a wrapper struct for a response from the DarkSky API.
+// Errors are included to make it easier to pass single values via channel from a goroutine.
 type ForecastResponse struct {
 	Forecast     Forecast
 	APICallCount int
 	Error        error
 }
 
+// MakeRequest creates a new ForecastRequest with defaults for the optional fields. If
+// used as-is the current forecast for the given lat/lng position will be retrieved in
+// imperial units with english language text.
 func MakeRequest(key string, latitude float64, longitude float64) *ForecastRequest {
 	return &ForecastRequest{
 		Key: key,
@@ -161,12 +157,18 @@ func MakeRequest(key string, latitude float64, longitude float64) *ForecastReque
 	}
 }
 
+// Get makes an outbound call to the Dark Sky API, using the provided fields in the ForecastRequest.
 func (f *ForecastRequest) Get() ForecastResponse {
 	forecastResponse := ForecastResponse{}
 
-	requestURL := fmt.Sprintf("%v/%v/%v,%v", f.baseURL, f.Key, f.Lat, f.Lng)
+	reqURL, err := f.URL()
 
-	res, err := http.Get(requestURL)
+	if err != nil {
+		forecastResponse.Error = err
+		return forecastResponse
+	}
+
+	res, err := http.Get(reqURL)
 
 	if err != nil {
 		forecastResponse.Error = err
@@ -204,22 +206,41 @@ func (f *ForecastRequest) Get() ForecastResponse {
 	return forecastResponse
 }
 
+// URL constructs and returns the valid url to request a forecast from the Dark Sky API.
+func (f *ForecastRequest) URL() (string, error) {
+	reqURL, err := url.Parse(f.baseURL)
+
+	if err != nil {
+		return "", err
+	}
+
+	reqURL.Path = fmt.Sprintf("%v/%v/%v,%v", reqURL.Path, f.Key, f.Lat, f.Lng)
+
+	return reqURL.String(), nil
+}
+
+// WithBaseURL will cause a request to be made to the provided baseURL. The expected format is
+// scheme://host:port/path. Useful for testing or hitting an internal proxy server.
 func (f *ForecastRequest) WithBaseURL(baseURL string) *ForecastRequest {
 	f.baseURL = baseURL
 	return f
 }
 
+// WithTime will cause a Forecast to be retrieved for the given time, specified as seconds
+// since unix epoch. This provides access to the "Time Machine" functionality of the Dark Sky API.
 func (f *ForecastRequest) WithTime(t int64) *ForecastRequest {
 	f.Time = t
 	return f
 }
 
+// WithLang allows forecast text to be returned in the given language.
 func (f *ForecastRequest) WithLang(l Lang) *ForecastRequest {
 	f.Lang = l
 	return f
 }
 
-func (f *ForecastRequest) WithUnit(u Units) *ForecastRequest {
+// WithUnits allows the forecast values to be returned in the given units.
+func (f *ForecastRequest) WithUnits(u Units) *ForecastRequest {
 	f.Units = u
 	return f
 }
