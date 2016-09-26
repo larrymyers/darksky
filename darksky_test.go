@@ -29,15 +29,33 @@ func TestForecastRequest_Get(t *testing.T) {
 }
 
 func TestForecastRequest_URL(t *testing.T) {
-	u, err := MakeRequest("foo", 41.1234, -81.1234).URL()
+	req := MakeRequest("foo", 41.1234, -81.1234)
 
-	if err != nil {
-		t.Error(err)
+	verifyURL := func(r *ForecastRequest, expectedURL string) {
+		u, err := req.URL()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if u != expectedURL {
+			t.Errorf("Got: %v\nExpected: %v", u, expectedURL)
+		}
 	}
 
-	if u != "https://api.darksky.net/forecast/foo/41.1234,-81.1234" {
-		t.Errorf("Wrong URL: %v", u)
-	}
+	verifyURL(req, "https://api.darksky.net/forecast/foo/41.1234,-81.1234?lang=en&units=us")
+
+	req.WithLang(Spanish)
+
+	verifyURL(req, "https://api.darksky.net/forecast/foo/41.1234,-81.1234?lang=es&units=us")
+
+	req.WithUnits(SI)
+
+	verifyURL(req, "https://api.darksky.net/forecast/foo/41.1234,-81.1234?lang=es&units=si")
+
+	req.WithTime(12345)
+
+	verifyURL(req, "https://api.darksky.net/forecast/foo/41.1234,-81.1234,12345?lang=es&units=si")
+
 }
 
 func TestErrorResponse(t *testing.T) {

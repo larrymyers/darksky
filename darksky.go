@@ -214,7 +214,17 @@ func (f *ForecastRequest) URL() (string, error) {
 		return "", err
 	}
 
+	v := reqURL.Query()
+	v.Add("lang", string(f.Lang))
+	v.Add("units", string(f.Units))
+
 	reqURL.Path = fmt.Sprintf("%v/%v/%v,%v", reqURL.Path, f.Key, f.Lat, f.Lng)
+
+	if f.Time > 0 {
+		reqURL.Path = reqURL.Path + "," + strconv.FormatInt(f.Time, 10)
+	}
+
+	reqURL.RawQuery = v.Encode()
 
 	return reqURL.String(), nil
 }
