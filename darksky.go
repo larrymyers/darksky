@@ -118,7 +118,7 @@ type Flags struct {
 
 // ForecastRequest is the data needed to retrieve a forecast from the Dark Sky API.
 // Key, Lat, and Lng are required to make a basic request. All other fields are optional,
-// and have sensible defaults if created used MakeRequest.
+// and have sensible defaults if created using MakeRequest.
 type ForecastRequest struct {
 	Key string
 	Lat float64
