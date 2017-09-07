@@ -14,11 +14,11 @@ package darksky
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"net/url"
-	"fmt"
+	"strconv"
 )
 
 // Forecast is the top level representation of the weather forecast for a location.
@@ -120,17 +120,16 @@ type Flags struct {
 // Key, Lat, and Lng are required to make a basic request. All other fields are optional,
 // and have sensible defaults if created using MakeRequest.
 type ForecastRequest struct {
-	Key string
-	Lat float64
-	Lng float64
-	Time int64
-	Lang Lang
-	Units Units
+	Key          string
+	Lat          float64
+	Lng          float64
+	Time         int64
+	Lang         Lang
+	Units        Units
 	ExtendHourly bool
-	Exclude []string
-	baseURL string
+	Exclude      []string
+	baseURL      string
 }
-
 
 // ForecastResponse is a wrapper struct for a response from the DarkSky API.
 // Errors are included to make it easier to pass single values via channel from a goroutine.
@@ -145,65 +144,73 @@ type ForecastResponse struct {
 // imperial units with english language text.
 func MakeRequest(key string, latitude float64, longitude float64) *ForecastRequest {
 	return &ForecastRequest{
-		Key: key,
-		Lat: latitude,
-		Lng: longitude,
-		Time: -1,
-		Lang: English,
-		Units: US,
+		Key:          key,
+		Lat:          latitude,
+		Lng:          longitude,
+		Time:         -1,
+		Lang:         English,
+		Units:        US,
 		ExtendHourly: false,
-		Exclude: []string{},
-		baseURL: "https://api.darksky.net/forecast",
+		Exclude:      []string{},
+		baseURL:      "https://api.darksky.net/forecast",
 	}
 }
 
 // Get makes an outbound call to the Dark Sky API, using the provided fields in the ForecastRequest.
 func (f *ForecastRequest) Get() ForecastResponse {
-	forecastResponse := ForecastResponse{}
+
+	if len(f.Key) == 0 {
+		return ForecastResponse{Error: errors.New(KeyRequired)}
+	}
+
+	if f.Lat < -90.0 || f.Lat > 90.0 {
+		return ForecastResponse{Error: errors.New(LatitudeInvalid)}
+	}
+
+	if f.Lng < -180.0 || f.Lng > 180.0 {
+		return ForecastResponse{Error: errors.New(LongitudeInvalid)}
+	}
+
+	fr := ForecastResponse{}
 
 	reqURL, err := f.URL()
-
 	if err != nil {
-		forecastResponse.Error = err
-		return forecastResponse
+		fr.Error = err
+		return fr
 	}
 
 	res, err := http.Get(reqURL)
-
 	if err != nil {
-		forecastResponse.Error = err
-		return forecastResponse
+		fr.Error = err
+		return fr
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
 	defer res.Body.Close()
-
 	if err != nil {
-		forecastResponse.Error = err
-		return forecastResponse
+		fr.Error = err
+		return fr
 	}
 
 	if res.StatusCode >= 400 {
-		forecastResponse.Error = errors.New(string(body))
-		return forecastResponse
+		fr.Error = errors.New(string(body))
+		return fr
 	}
 
 	callCount, err := strconv.Atoi(res.Header.Get(APICallsHeader))
-
 	if err == nil {
-		forecastResponse.APICallCount = callCount
+		fr.APICallCount = callCount
 	}
 
 	forecast, err := fromJSON(body)
-
 	if err != nil {
-		forecastResponse.Error = err
-		return forecastResponse
+		fr.Error = err
+		return fr
 	}
 
-	forecastResponse.Forecast = *forecast
+	fr.Forecast = *forecast
 
-	return forecastResponse
+	return fr
 }
 
 // URL constructs and returns the valid url to request a forecast from the Dark Sky API.
@@ -254,6 +261,13 @@ func (f *ForecastRequest) WithUnits(u Units) *ForecastRequest {
 	f.Units = u
 	return f
 }
+
+// ForecastRequest validation errors
+const (
+	KeyRequired      = "key is required"
+	LatitudeInvalid  = "latitude is not valid, must between -90 and +90 degrees"
+	LongitudeInvalid = "longitude is not valid, must between -180 and 180 degrees"
+)
 
 // Units defines the possible options for measurement units used in the response.
 type Units string

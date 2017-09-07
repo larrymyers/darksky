@@ -28,6 +28,47 @@ func TestForecastRequest_Get(t *testing.T) {
 	})
 }
 
+func TestForecastRequest_Get_InvalidArgs(t *testing.T) {
+	resp := MakeRequest("", 41.0, -87.62).Get()
+	if resp.Error == nil || resp.Error.Error() != KeyRequired {
+		t.Error("Expected empty key to be invalid.")
+	}
+
+	resp = MakeRequest("abc", -91.0, 0).Get()
+	if resp.Error == nil || resp.Error.Error() != LatitudeInvalid {
+		t.Error("Expected latitude to be invalid.")
+	}
+
+	resp = MakeRequest("abc", 91.0, 0).Get()
+	if resp.Error == nil || resp.Error.Error() != LatitudeInvalid {
+		t.Error("Expected latitude to be invalid.")
+	}
+
+	resp = MakeRequest("abc", 0, -181.0).Get()
+	if resp.Error == nil || resp.Error.Error() != LongitudeInvalid {
+		t.Error("Expected longitude to be invalid.")
+	}
+
+	resp = MakeRequest("abc", 0, 181.0).Get()
+	if resp.Error == nil || resp.Error.Error() != LongitudeInvalid {
+		t.Error("Expected longitude to be invalid.")
+	}
+}
+
+func TestForecastRequest_Get_WithError(t *testing.T) {
+	usingTestServer(errorForecastHandler, func(testURL string) {
+		resp := MakeRequest(key, 41.8781, -87.6297).WithBaseURL(testURL).Get()
+
+		if resp.Error == nil {
+			t.Error("Expected an HTTP Error Response to result in an error.")
+		}
+
+		if resp.Error.Error() != "A Server Error Occurred." {
+			t.Error("Error() was not the expected value.")
+		}
+	})
+}
+
 func TestForecastRequest_URL(t *testing.T) {
 	req := MakeRequest("foo", 41.1234, -81.1234)
 
@@ -58,21 +99,7 @@ func TestForecastRequest_URL(t *testing.T) {
 
 }
 
-func TestErrorResponse(t *testing.T) {
-	usingTestServer(errorForecastHandler, func(testURL string) {
-		resp := MakeRequest(key, 41.8781, -87.6297).WithBaseURL(testURL).Get()
-
-		if resp.Error == nil {
-			t.Error("Expected an HTTP Error Response to result in an error.")
-		}
-
-		if resp.Error.Error() != "A Server Error Occurred." {
-			t.Error("Error() was not the expected value.")
-		}
-	})
-}
-
-func TestWindDirection(t *testing.T) {
+func TestDataPoint_WindDirection(t *testing.T) {
 	dp := DataPoint{WindBearing: 147}
 
 	if dp.WindDirection() != "SE" {
